@@ -1,0 +1,54 @@
+# 敏感配置文件
+.env
+.env.local
+.env.production
+.env.development
+
+# 日志文件
+logs/
+*.log
+
+# 临时文件
+*.tmp
+*.temp
+
+# IDE配置文件
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 编译产物
+bin/
+dist/
+build/
+
+# 依赖包
+vendor/
+go.mod
+
+# Docker 相关
+Dockerfile
+.dockerignore
+
+# 操作系统文件
+.DS_Store
+Thumbs.db
+
+# 测试文件
+*_test.go
+
+# 二进制文件
+*.exe
+*.dll
+*.so
+*.dylib
+
+# 数据库文件
+*.db
+*.sqlite
+*.sqlite3
+
+# 备份文件
+*.bak
+*.backup

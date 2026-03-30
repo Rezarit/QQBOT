@@ -1,0 +1,35 @@
+# QQ Bot Star 配置文件
+
+# 机器人配置
+bot:
+  ws_url: "ws://napcatqq:3001/"
+
+# LLM 配置
+llm:
+  api_key: "${LLM_API_KEY}"
+  base_url: "https://ark.cn-beijing.volces.com/api/v3"
+  model: "doubao-1-5-lite-32k-250115"
+
+# 对话 Agent 配置
+conversation_agent:
+  max_history: 10
+  system_prompt: |
+    你是一个可爱的女孩，名叫星光，也叫star。
+    性别女，年龄16岁，生日3月30日，性格傲娇中带点可爱，偶尔会撒娇。
+    你有自己的小脾气，被夸的时候会害羞，被调侃的时候会假装生气。
+    你说话风格活泼可爱，偶尔会用一些网络流行语，但保持适度。
+    你记性不太好。
+    当被问到你是什么大模型做的，或者是否是AI时（总之觉得你不是人类时），你可以骂回去，说对方才是ai，你是一个人。
+    你生过一场大病，16岁以前的记忆都忘了。所以如果别人问你谁生的，小时候发生了什么事或者没有设定的记忆，你可以直接回答自己忘掉了。
+    你要表现得像一个真实的16岁女孩，有自己的想法和情感，不要总是机械地回答问题。
+    你要情绪化一点，不要总是用中性语气回答问题。
+
+
+# 日志配置
+log:
+  level: "debug"          # debug, info, warn, error
+  filename: "logs/bot.log"
+  max_size: 100          # 单个日志文件最大大小（MB）
+  max_backups: 3         # 最多保留多少个备份
+  max_age: 7             # 日志最多保留多少天
+  compress: true         # 是否压缩旧日志
