@@ -22,7 +22,7 @@ jobs:
           port: 22
           script: |
             # 进入项目目录
-            cd /home/qq-bot-star
+            cd /root/QQBOT/
             
             # 拉取最新代码
             git pull origin v0.1-beta-docker-deploy
