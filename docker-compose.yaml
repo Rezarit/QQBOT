@@ -5,13 +5,13 @@ services:
     image: suzukirenz/napcatqq:latest
     container_name: napcatqq
     ports:
-      - "3001:3001"
-      - "6099:6099"  # 添加 WebUI 端口映射
+      - "13001:3001"  # WebSocket服务端口，避免与秒杀系统冲突
+      - "16099:6099"  # WebUI管理界面端口，避免与秒杀系统冲突
     environment:
       - TZ=Asia/Shanghai
     restart: always
     volumes:
-      - ./onebot11_2596899231.json:/app/napcat/config/onebot11_2596899231.json  # 使用正确的文件名
+      - ./onebot11_2596899231.json:/app/napcat/config/onebot11_2596899231.json
     networks:
       - qq-bot-network
 
