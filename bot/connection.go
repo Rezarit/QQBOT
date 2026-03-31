@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"qq-bot-star/agents/conversation"
+	"qq-bot-star/agents/knowledge"
 	"qq-bot-star/domain"
 	"qq-bot-star/utils/logger"
 
@@ -24,7 +25,7 @@ type Bot struct {
 }
 
 // NewBot 创建一个机器人
-func NewBot(wsURL string, convAgent *conversation.Agent) (*Bot, error) {
+func NewBot(wsURL string, convAgent *conversation.Agent, knowledgeAgent *knowledge.Agent) (*Bot, error) {
 	u, err := url.Parse(wsURL)
 	if err != nil {
 		return nil, err
@@ -65,7 +66,7 @@ func NewBot(wsURL string, convAgent *conversation.Agent) (*Bot, error) {
 	}
 
 	bot.sender = NewSender(conn)
-	bot.handler = NewHandler(bot.sender, convAgent)
+	bot.handler = NewHandler(bot.sender, convAgent, knowledgeAgent)
 
 	signal.Notify(bot.interrupt, os.Interrupt)
 

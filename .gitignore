@@ -25,10 +25,10 @@ build/
 
 # 依赖包
 vendor/
-go.mod
 
-# Docker 相关
-Dockerfile
+# Docker 相关（Dockerfile 和 docker-compose.yaml 要提交！）
+# Dockerfile
+# docker-compose.yaml
 .dockerignore
 
 # 操作系统文件

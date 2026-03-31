@@ -8,7 +8,7 @@ bot:
 llm:
   api_key: "${LLM_API_KEY}"
   base_url: "https://ark.cn-beijing.volces.com/api/v3"
-  model: "doubao-1-5-lite-32k-250115"
+  model: "${LLM_MODEL}"
 
 # 对话 Agent 配置
 conversation_agent:
@@ -33,3 +33,21 @@ log:
   max_backups: 3         # 最多保留多少个备份
   max_age: 7             # 日志最多保留多少天
   compress: true         # 是否压缩旧日志
+
+# Qdrant 向量数据库配置
+qdrant:
+  host: "qdrant"         # Qdrant 服务主机名
+  port: 6334             # Qdrant gRPC 端口
+  collection: "qq_bot_knowledge_v2"
+  top_k: 5               # 检索时返回的文档数量
+  score_threshold: 0.5   # 相似度阈值
+
+# SQLite 数据库配置
+sqlite:
+  db_path: "data/user_info.db"  # 数据库文件路径
+
+# Embedding 模型配置
+embedding:
+  api_key: "${EMBEDDING_API_KEY}"
+  base_url: "https://ark.cn-beijing.volces.com/api/v3"
+  model: "${EMBEDDING_MODEL}"
