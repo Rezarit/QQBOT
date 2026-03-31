@@ -3,7 +3,7 @@ name: QQ机器人自动部署
 on:
   push:
     branches:
-      - v0.1-beta-docker-deploy
+      - v0.2-feat-user-memory
 
 jobs:
   deploy:
@@ -25,7 +25,7 @@ jobs:
             cd /root/QQBOT/
             
             # 拉取最新代码
-            git pull origin v0.1-beta-docker-deploy
+            git pull origin v0.2-feat-user-memory
             
             # 停止并删除旧容器
             docker-compose down
