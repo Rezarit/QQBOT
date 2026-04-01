@@ -2,6 +2,7 @@ package bot
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"strings"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"qq-bot-star/agents/conversation"
 	"qq-bot-star/domain"
 	"qq-bot-star/utils/logger"
+	"qq-bot-star/utils/storage"
 )
 
 type Handler struct {
@@ -24,24 +26,53 @@ func NewHandler(sender *Sender, convAgent *conversation.Agent) *Handler {
 	}
 }
 
+// getSenderNickname 获取发送者昵称
+func getSenderNickname(msg domain.OneBotMessage) string {
+	nickname := msg.Sender.Nickname
+	if nickname == "" || nickname == "NULL" {
+		// 私聊消息中昵称可能为空，使用用户ID作为默认
+		return fmt.Sprintf("用户%d", msg.UserID)
+	}
+	return nickname
+}
+
 // HandleMessage 处理消息
 func (h *Handler) HandleMessage(msg domain.OneBotMessage) {
-	logger.Debugf("收到消息 - 类型: %s, 群ID: %d, 机器人QQ: %d, 发送者QQ: %d",
-		msg.MessageType, msg.GroupID, msg.SelfID, msg.UserID)
-
-	if msg.MessageType == "group" {
-		isAt := msg.IsAtMe()
-		logger.Debugf("群聊消息，是否@机器人: %v", isAt)
-		if !isAt {
-			logger.Debugf("群聊消息但未@机器人，忽略: %s", msg.Sender.Nickname)
-			return
-		}
+	// 只处理群聊消息，忽略私聊消息
+	if msg.MessageType != "group" {
+		logger.Debugf("收到私聊消息，忽略: %d", msg.UserID)
+		return
 	}
 
-	text := msg.ExtractTextWithoutAt()
-	logger.Infof("收到来自 %s(%d) 的消息: %s", msg.Sender.Nickname, msg.UserID, text)
+	nickname := getSenderNickname(msg)
+	logger.Debugf("收到消息 - 类型: %s, 群ID: %d, 机器人QQ: %d, 发送者QQ: %d, 昵称: %s",
+		msg.MessageType, msg.GroupID, msg.SelfID, msg.UserID, nickname)
 
-	replyText, err := h.conversationAgent.Process(context.Background(), text)
+	// 提取文本内容
+	text := msg.ExtractTextWithoutAt()
+
+	// 保存消息到按群和用户分类的存储
+	if text != "" {
+		go func() {
+			err := storage.StoreMessage(msg.GroupID, msg.UserID, nickname, text)
+			if err != nil {
+				logger.Warnf("保存消息到分类存储失败: %v", err)
+			}
+		}()
+	}
+
+	// 只有@机器人才回复
+	isAt := msg.IsAtMe()
+	logger.Debugf("群聊消息，是否@机器人: %v", isAt)
+	if !isAt {
+		logger.Debugf("群聊消息但未@机器人，忽略: %s", nickname)
+		return
+	}
+
+	logger.Infof("收到来自 %s(%d) 的消息: %s", nickname, msg.UserID, text)
+
+	isGroup := msg.MessageType == "group"
+	replyText, err := h.conversationAgent.Process(context.Background(), text, isGroup, msg.GroupID, msg.UserID, nickname)
 	if err != nil {
 		logger.Errorf("处理消息失败: %v", err)
 	}
@@ -57,13 +88,8 @@ func (h *Handler) HandleMessage(msg domain.OneBotMessage) {
 		if trimmed == "" {
 			continue
 		}
-		var sendErr error
-		if msg.MessageType == "group" {
-			sendErr = h.sender.SendGroupMessage(msg.GroupID, trimmed)
-		} else {
-			sendErr = h.sender.SendPrivateMessage(msg.UserID, trimmed)
-		}
 
+		sendErr := h.sender.SendGroupMessage(msg.GroupID, trimmed)
 		if sendErr != nil {
 			logger.Errorf("发送消息失败: %v", sendErr)
 			break

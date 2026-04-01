@@ -1,16 +1,18 @@
 package knowledge
 
+import (
+	"context"
+)
+
+// Agent 知识库智能体
 type Agent struct {
 }
 
-func NewAgent() *Agent {
-	return &Agent{}
+// Config 知识库智能体配置
+type Config struct {
 }
 
-func (a *Agent) SaveMessage(groupID int64, userID int64, text string) error {
-	return nil
-}
-
-func (a *Agent) Query(keyword string) ([]string, error) {
-	return nil, nil
+// NewAgent 创建一个知识库智能体
+func NewAgent(ctx context.Context, cfg Config) (*Agent, error) {
+	return &Agent{}, nil
 }

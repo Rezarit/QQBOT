@@ -1,8 +1,22 @@
-version: '3.8'
-
 services:
+  # SillyTavern - 对话管理服务
+  sillytavern:
+    image: goolashe/sillytavern:stable
+    container_name: sillytavern
+    ports:
+      - "8080:8000"  # 映射容器的8000端口到主机的8080端口
+    environment:
+      - TZ=Asia/Shanghai
+    restart: always
+    volumes:
+      - ./sillytavern_data:/app/data  # 持久化SillyTavern数据
+      - ./sillytavern_data/config.yaml:/home/node/app/config/config.yaml  # 挂载自定义配置
+    networks:
+      - qq-bot-network
+
+  # NapCatQQ - QQ 机器人协议端
   napcatqq:
-    image: suzukirenz/napcatqq:latest
+    image: mlikiowa/napcat-docker:latest
     container_name: napcatqq
     ports:
       - "13001:3001"  # WebSocket服务端口，避免与秒杀系统冲突
@@ -15,6 +29,7 @@ services:
     networks:
       - qq-bot-network
 
+  # QQ Bot Star - 主程序
   qq-bot-star:
     build: .
     container_name: qq-bot-star
@@ -29,6 +44,8 @@ services:
       - qq-bot-network
     depends_on:
       napcatqq:
+        condition: service_started
+      sillytavern:
         condition: service_started
 
 networks:

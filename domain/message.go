@@ -95,10 +95,52 @@ func (m *OneBotMessage) ExtractTextWithoutAt() string {
 							text += t
 						}
 					}
+				} else if segType == "image" {
+					// 处理图片消息，添加图片描述
+					text += "[图片]"
+					// 可以在这里提取图片 URL 或其他信息
+					if data, ok := segMap["data"].(map[string]interface{}); ok {
+						if url, ok := data["url"].(string); ok {
+							// 可以将 URL 存储到其他地方
+							_ = url
+						}
+					}
 				}
 			}
 		}
 	}
 
 	return text
+}
+
+// ExtractContentWithImages 提取文本和图片信息，用于传递给 LLM
+func (m *OneBotMessage) ExtractContentWithImages() string {
+	var content string
+
+	segments, ok := m.Message.([]interface{})
+	if !ok {
+		if str, ok := m.Message.(string); ok {
+			return str
+		}
+		return ""
+	}
+
+	for _, seg := range segments {
+		if segMap, ok := seg.(map[string]interface{}); ok {
+			if segType, ok := segMap["type"].(string); ok {
+				if segType == "text" {
+					if data, ok := segMap["data"].(map[string]interface{}); ok {
+						if t, ok := data["text"].(string); ok {
+							content += t
+						}
+					}
+				} else if segType == "image" {
+					// 处理图片消息，只添加 [图片] 字样
+					content += "[图片]"
+				}
+			}
+		}
+	}
+
+	return content
 }

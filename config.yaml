@@ -8,7 +8,13 @@ bot:
 llm:
   api_key: "${LLM_API_KEY}"
   base_url: "https://ark.cn-beijing.volces.com/api/v3"
-  model: "doubao-1-5-lite-32k-250115"
+  model: "${LLM_MODEL}"
+
+# SillyTavern 配置
+silly_tavern:
+  api_url: "http://sillytavern:8000"  # SillyTavern API地址
+  api_key: ""  # 如果设置了API密钥，填写在这里
+  model: "${LLM_MODEL}"  # 使用的LLM模型名称
 
 # 对话 Agent 配置
 conversation_agent:

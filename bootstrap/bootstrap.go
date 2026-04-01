@@ -36,9 +36,13 @@ func NewApp(cfg *config.Config) (*App, error) {
 
 	// 初始化对话 Agent
 	convAgent := conversation.NewAgent(conversation.Config{
-		ChatModel:    chatModel,
-		MaxHistory:   cfg.ConversationAgent.MaxHistory,
-		SystemPrompt: cfg.ConversationAgent.SystemPrompt,
+		ChatModel:           chatModel,
+		MaxHistory:          cfg.ConversationAgent.MaxHistory,
+		DefaultSystemPrompt: cfg.ConversationAgent.SystemPrompt,
+		SillyTavernAPIURL:   cfg.SillyTavern.APIURL,
+		SillyTavernAPIKey:   cfg.SillyTavern.APIKey,
+		SillyTavernModel:    cfg.SillyTavern.Model,
+		Tools:               nil,
 	})
 	logger.Info("对话 Agent 初始化成功")
 
