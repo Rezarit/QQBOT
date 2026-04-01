@@ -52,3 +52,9 @@ Thumbs.db
 # 备份文件
 *.bak
 *.backup
+
+# SillyTavern 数据目录
+sillytavern_data/
+
+# 编译后的二进制文件
+qq-bot

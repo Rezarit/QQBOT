@@ -1,19 +1,22 @@
 services:
-  # Qdrant - 向量数据库
-  qdrant:
-    container_name: qdrant
-    image: qdrant/qdrant:latest
+  # SillyTavern - 对话管理服务
+  sillytavern:
+    image: goolashe/sillytavern:stable
+    container_name: sillytavern
     ports:
-      - "6333:6333"  # Qdrant API 端口
-      - "6334:6334"  # Qdrant 仪表盘端口
+      - "8080:8000"  # 映射容器的8000端口到主机的8080端口
+    environment:
+      - TZ=Asia/Shanghai
+    restart: always
     volumes:
-      - qdrant_data:/qdrant/storage
+      - ./sillytavern_data:/app/data  # 持久化SillyTavern数据
+      - ./sillytavern_data/config.yaml:/home/node/app/config/config.yaml  # 挂载自定义配置
     networks:
       - qq-bot-network
 
   # NapCatQQ - QQ 机器人协议端
   napcatqq:
-    image: suzukirenz/napcatqq:latest
+    image: mlikiowa/napcat-docker:latest
     container_name: napcatqq
     ports:
       - "13001:3001"  # WebSocket服务端口，避免与秒杀系统冲突
@@ -34,7 +37,6 @@ services:
       - ./config.yaml:/app/config.yaml
       - ./logs:/app/logs
       - ./.env:/app/.env
-      - ./data:/app/data  # 挂载本地 data 目录，持久化数据库
     environment:
       - TZ=Asia/Shanghai
     restart: always
@@ -43,12 +45,9 @@ services:
     depends_on:
       napcatqq:
         condition: service_started
-      qdrant:
+      sillytavern:
         condition: service_started
 
 networks:
   qq-bot-network:
     driver: bridge
-
-volumes:
-  qdrant_data:

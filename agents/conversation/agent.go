@@ -1,23 +1,20 @@
 package conversation
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
-	"qq-bot-star/agents/knowledge"
+	"net/http"
 	"qq-bot-star/utils/logger"
 	"sync"
+	"time"
 
 	"github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
 )
-
-// KnowledgeAgent 知识库 Agent 接口（依赖倒置）
-type KnowledgeAgent interface {
-	GenerateSystemPrompt(ctx context.Context) (string, error)
-	GetUserInfo(ctx context.Context, userID, groupID int64) (*knowledge.UserInfo, error)
-}
 
 // Agent 对话智能体
 type Agent struct {
@@ -26,9 +23,32 @@ type Agent struct {
 	historiesMu         sync.RWMutex                 // 保护 histories 的读写锁
 	maxHistory          int                          // 每个会话最大历史轮数
 	defaultSystemPrompt string                       // 默认系统提示词
-	knowledgeAgent      KnowledgeAgent               // 知识库 Agent（可选）
+	sillyTavernAPIURL   string                       // SillyTavern API地址
+	sillyTavernAPIKey   string                       // SillyTavern API密钥
+	sillyTavernModel    string                       // SillyTavern 使用的模型
+	client              *http.Client                 // HTTP客户端，用于调用SillyTavern API
 	toolsNode           *compose.ToolsNode           // 工具执行节点（可选）
 	tools               []tool.BaseTool              // 工具列表（可选）
+}
+
+// SillyTavernMessage SillyTavern消息结构
+type SillyTavernMessage struct {
+	Role    string `json:"role"`    // 角色: user, assistant
+	Content string `json:"content"` // 内容
+}
+
+// SillyTavernRequest SillyTavern API请求结构
+type SillyTavernRequest struct {
+	Messages []SillyTavernMessage `json:"messages"`
+	Model    string               `json:"model"`
+	Stream   bool                 `json:"stream"`
+}
+
+// SillyTavernResponse SillyTavern API响应结构
+type SillyTavernResponse struct {
+	Choices []struct {
+		Message SillyTavernMessage `json:"message"`
+	} `json:"choices"`
 }
 
 // Config 对话智能体配置
@@ -36,7 +56,9 @@ type Config struct {
 	ChatModel           model.BaseChatModel
 	MaxHistory          int
 	DefaultSystemPrompt string
-	KnowledgeAgent      KnowledgeAgent  // 知识库 Agent（可选）
+	SillyTavernAPIURL   string
+	SillyTavernAPIKey   string
+	SillyTavernModel    string
 	Tools               []tool.BaseTool // 工具列表（可选）
 }
 
@@ -55,8 +77,13 @@ func NewAgent(config Config) *Agent {
 		histories:           make(map[string][]*schema.Message),
 		maxHistory:          config.MaxHistory,
 		defaultSystemPrompt: config.DefaultSystemPrompt,
-		knowledgeAgent:      config.KnowledgeAgent,
-		tools:               config.Tools,
+		sillyTavernAPIURL:   config.SillyTavernAPIURL,
+		sillyTavernAPIKey:   config.SillyTavernAPIKey,
+		sillyTavernModel:    config.SillyTavernModel,
+		client: &http.Client{
+			Timeout: 30 * time.Second,
+		},
+		tools: config.Tools,
 	}
 
 	// 如果有工具，初始化 ToolsNode 并绑定工具到 ChatModel
@@ -139,6 +166,30 @@ func (a *Agent) Process(ctx context.Context, text string, isGroup bool, groupID,
 	// 添加用户消息
 	history = append(history, schema.UserMessage(text))
 
+	// 如果配置了SillyTavern API，使用SillyTavern处理
+	if a.sillyTavernAPIURL != "" {
+		logger.Infof("使用 SillyTavern API 处理消息 - 会话: %s", sessionID)
+		response, err := a.processWithSillyTavern(ctx, sessionID, history, userID, nickname)
+		if err != nil {
+			logger.Errorf("SillyTavern API 调用失败 - 会话: %s, 错误: %v", sessionID, err)
+			// 失败时回退到LLM处理
+			return a.processWithLLM(ctx, sessionID, history, exists, userID, nickname, isGroup, groupID)
+		}
+		// 添加助手消息到历史
+		history = append(history, &schema.Message{
+			Role:    "assistant",
+			Content: response,
+		})
+		a.histories[sessionID] = history
+		return response, nil
+	}
+
+	// 没有配置SillyTavern API，使用LLM处理
+	return a.processWithLLM(ctx, sessionID, history, exists, userID, nickname, isGroup, groupID)
+}
+
+// processWithLLM 使用LLM处理消息
+func (a *Agent) processWithLLM(ctx context.Context, sessionID string, history []*schema.Message, exists bool, userID int64, nickname string, isGroup bool, groupID int64) (string, error) {
 	// 构建消息列表（包含当前用户QQ号和昵称）
 	messages := a.buildMessages(ctx, history, userID, nickname, isGroup, groupID)
 
@@ -151,6 +202,83 @@ func (a *Agent) Process(ctx context.Context, text string, isGroup bool, groupID,
 
 	// 没有工具，直接调用 LLM
 	return a.processWithoutTools(ctx, sessionID, history, messages, exists)
+}
+
+// processWithSillyTavern 使用SillyTavern API处理消息
+func (a *Agent) processWithSillyTavern(ctx context.Context, sessionID string, history []*schema.Message, userID int64, nickname string) (string, error) {
+	// 构建SillyTavern消息列表
+	stMessages := make([]SillyTavernMessage, 0, len(history))
+
+	// 添加系统提示
+	stMessages = append(stMessages, SillyTavernMessage{
+		Role:    "system",
+		Content: a.defaultSystemPrompt,
+	})
+
+	// 添加历史消息
+	for _, msg := range history {
+		if msg.Role == "user" {
+			stMessages = append(stMessages, SillyTavernMessage{
+				Role:    "user",
+				Content: msg.Content,
+			})
+		} else if msg.Role == "assistant" {
+			stMessages = append(stMessages, SillyTavernMessage{
+				Role:    "assistant",
+				Content: msg.Content,
+			})
+		}
+	}
+
+	// 构建请求
+	request := SillyTavernRequest{
+		Messages: stMessages,
+		Model:    a.sillyTavernModel,
+		Stream:   false,
+	}
+
+	// 序列化请求
+	data, err := json.Marshal(request)
+	if err != nil {
+		return "", fmt.Errorf("序列化请求失败: %w", err)
+	}
+
+	// 创建HTTP请求
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, a.sillyTavernAPIURL+"/chat/completions", bytes.NewBuffer(data))
+	if err != nil {
+		return "", fmt.Errorf("创建HTTP请求失败: %w", err)
+	}
+
+	// 设置请求头
+	req.Header.Set("Content-Type", "application/json")
+	if a.sillyTavernAPIKey != "" {
+		req.Header.Set("Authorization", "Bearer "+a.sillyTavernAPIKey)
+	}
+
+	// 发送请求
+	resp, err := a.client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("发送HTTP请求失败: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// 检查响应状态
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("API调用失败，状态码: %d", resp.StatusCode)
+	}
+
+	// 解析响应
+	var response SillyTavernResponse
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return "", fmt.Errorf("解析响应失败: %w", err)
+	}
+
+	// 提取回复
+	if len(response.Choices) == 0 || response.Choices[0].Message.Content == "" {
+		return "", fmt.Errorf("SillyTavern返回空回复")
+	}
+
+	return response.Choices[0].Message.Content, nil
 }
 
 // processWithTools 带工具调用的处理流程
@@ -233,57 +361,27 @@ func (a *Agent) processWithoutTools(ctx context.Context, sessionID string, histo
 
 // buildMessages 构建消息列表
 func (a *Agent) buildMessages(ctx context.Context, history []*schema.Message, userID int64, nickname string, isGroup bool, groupID int64) []*schema.Message {
-	// 优先从知识库 Agent 获取 system prompt
-	var systemPrompt string
-	var err error
-	if a.knowledgeAgent != nil {
-		systemPrompt, err = a.knowledgeAgent.GenerateSystemPrompt(ctx)
-		if err != nil {
-			logger.Warnf("从知识库获取 system prompt 失败，使用默认值: %v", err)
-		}
-	}
-
-	// 如果获取失败或没有知识库 Agent，使用默认值
-	if systemPrompt == "" {
-		systemPrompt = a.defaultSystemPrompt
-	}
+	// 使用默认系统提示词
+	systemPrompt := a.defaultSystemPrompt
 
 	// 在系统提示词中加上当前对话用户的基本信息
 	if nickname != "" {
-		systemPrompt = fmt.Sprintf("%s\n\n当前正在跟你对话的用户 QQ 号是 %d，昵称是 %s。\n**记住**：不要直白地告诉用户他的 QQ 号或昵称！要用自然的方式跟他交流！", systemPrompt, userID, nickname)
+		systemPrompt = fmt.Sprintf(`%s
+
+当前正在跟你对话的用户信息：
+- 用户 QQ 号（user_id）：%d
+- 群 ID（group_id）：%d
+- 昵称：%s
+
+**记住**：不要直白地告诉用户他的 QQ 号或昵称！要用自然的方式跟他交流！`, systemPrompt, userID, groupID, nickname)
 	} else {
-		systemPrompt = fmt.Sprintf("%s\n\n当前正在跟你对话的用户 QQ 号是 %d。\n**记住**：不要直白地告诉用户他的 QQ 号！要用自然的方式跟他交流！", systemPrompt, userID)
-	}
+		systemPrompt = fmt.Sprintf(`%s
 
-	// 查询用户信息并添加到系统提示词
-	if a.knowledgeAgent != nil {
-		dbGroupID := int64(0)
-		if isGroup {
-			dbGroupID = groupID
-		}
-		userInfo, err := a.knowledgeAgent.GetUserInfo(ctx, userID, dbGroupID)
-		if err != nil {
-			logger.Warnf("查询用户信息失败: %v", err)
-		} else if userInfo != nil {
-			// 如果有用户信息，添加到系统提示词
-			var userInfoStr string
-			if userInfo.Age != nil {
-				userInfoStr += fmt.Sprintf("\n- 年龄：%d岁", *userInfo.Age)
-			}
-			if userInfo.Birthday != nil {
-				userInfoStr += fmt.Sprintf("\n- 生日：%s", *userInfo.Birthday)
-			}
-			if userInfo.Gender != nil {
-				userInfoStr += fmt.Sprintf("\n- 性别：%s", *userInfo.Gender)
-			}
-			if userInfo.Tags != nil {
-				userInfoStr += fmt.Sprintf("\n- 标签：%s", *userInfo.Tags)
-			}
+当前正在跟你对话的用户信息：
+- 用户 QQ 号（user_id）：%d
+- 群 ID（group_id）：%d
 
-			if userInfoStr != "" {
-				systemPrompt = fmt.Sprintf("%s\n\n**你对这个用户的记忆**：%s", systemPrompt, userInfoStr)
-			}
-		}
+**记住**：不要直白地告诉用户他的 QQ 号！要用自然的方式跟他交流！`, systemPrompt, userID, groupID)
 	}
 
 	messages := []*schema.Message{

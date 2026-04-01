@@ -11,6 +11,7 @@ import (
 type Config struct {
 	Bot               BotConfig               `yaml:"bot"`
 	LLM               LLMConfig               `yaml:"llm"`
+	SillyTavern       SillyTavernConfig       `yaml:"silly_tavern"`
 	ConversationAgent ConversationAgentConfig `yaml:"conversation_agent"`
 	Log               LogConfig               `yaml:"log"`
 	Qdrant            QdrantConfig            `yaml:"qdrant"`
@@ -60,6 +61,12 @@ type EmbeddingConfig struct {
 	Model   string `yaml:"model"`
 }
 
+type SillyTavernConfig struct {
+	APIURL string `yaml:"api_url"`
+	APIKey string `yaml:"api_key"`
+	Model  string `yaml:"model"`
+}
+
 func Load(filename string) (*Config, error) {
 	// 加载 .env 文件
 	err := godotenv.Load()
@@ -88,6 +95,9 @@ func expandEnvVars(cfg *Config) {
 	cfg.LLM.APIKey = expandEnv(cfg.LLM.APIKey)
 	cfg.LLM.BaseURL = expandEnv(cfg.LLM.BaseURL)
 	cfg.LLM.Model = expandEnv(cfg.LLM.Model)
+	cfg.SillyTavern.APIURL = expandEnv(cfg.SillyTavern.APIURL)
+	cfg.SillyTavern.APIKey = expandEnv(cfg.SillyTavern.APIKey)
+	cfg.SillyTavern.Model = expandEnv(cfg.SillyTavern.Model)
 	cfg.Embedding.APIKey = expandEnv(cfg.Embedding.APIKey)
 	cfg.Embedding.BaseURL = expandEnv(cfg.Embedding.BaseURL)
 	cfg.Embedding.Model = expandEnv(cfg.Embedding.Model)
