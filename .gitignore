@@ -1,0 +1,18 @@
+# 运行时数据（QQ 登录态、AstrBot 数据库、NapCat 配置，含 token）
+data/
+qrcode/
+.napcat_token
+*.log
+
+# 临时/调试残留
+_tmp/
+_tmp*/
+_dl/
+
+# 上游源码快照（不进仓库，见 README 里的上游链接）
+AstrBot/
+NapCatQQ/
+
+# 环境变量（WEBUI_TOKEN 等）
+.env
+.env.local
